@@ -4,6 +4,11 @@
     path: /etc/letsencrypt/live/{{ cert_item.domains | first | replace('*.', '') }}/cert.pem
   register: letsencrypt_cert
 
+- name: Check if gitlab is installed exists.
+  stat:
+    path: /usr/bin/gitlab-ctl
+  register: gitlab_ctl
+
 - name: Stop services to allow certbot to generate a cert.
   service:
     name: "{{ item }}"
@@ -11,9 +16,21 @@
   when: not letsencrypt_cert.stat.exists
   with_items: "{{ certbot_create_standalone_stop_services }}"
 
+- name: Stop Gitlab.
+  command: "gitlab-ctl stop"
+  when:
+  - not letsencrypt_cert.stat.exists
+  - gitlab_ctl.stat.exists
+
 - name: Generate new certificate if one doesn't exist.
   command: "{{ certbot_create_command }}"
   when: not letsencrypt_cert.stat.exists
+
+- name: Start Gitlab
+  command: "gitlab-ctl start"
+  when:
+  - not letsencrypt_cert.stat.exists
+  - gitlab_ctl.stat.exists
 
 - name: Start services after cert has been generated.
   service:
